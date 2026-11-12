@@ -1,0 +1,12 @@
+{
+  "sql_server": ".\\SQLEXPRESS",
+  "sql_database": "LoanBook01",
+  "odbc_driver": "ODBC Driver 18 for SQL Server",
+  "trust_server_certificate": true,
+  "history_years": 3,
+  "warmup_calendar_days": 400,
+  "pe_history_years": 10,
+  "request_pause_seconds": 0.5,
+  "http_timeout_seconds": 30,
+  "http_attempts": 3
+}

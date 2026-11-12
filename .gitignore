@@ -1,0 +1,25 @@
+# Environments, virtualenvs, and Python caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Raw ingestion artifacts, logs, and local overrides
+data/raw/
+logs/
+*.log
+*.bak
+config.local.json
+config.runtime.json
+config.backup.json
+
+# Keep curated versioned snapshots tracked when explicitly staged
+!data/snapshots/
+!data/snapshots/*.csv
+
+# Local notes / HTML scratch exports
+*.html
+Antigravity_SP500_Master_Prompt.md
+PROJECT_STEP_BY_STEP_GUIDE.md
+
