@@ -259,7 +259,7 @@ def connect(config):
           f'TrustServerCertificate={"yes" if config["trust_server_certificate"] else "no"};')
     try:
         conn = pyodbc.connect(cs, timeout=15, autocommit=False)
-        if conn.execute("SELECT OBJECT_ID('dbo.FetchAudit', 'U')").fetchone()[0] is None:
+        if conn.execute("SELECT OBJECT_ID('dbo.Constituents', 'U')").fetchone()[0] is None:
             conn.close()
             raise RuntimeError('Run 01_create_database.sql in SSMS first.')
         conn.commit()
@@ -285,9 +285,8 @@ def replace_series(conn, run_id, code, source, frequency, rows, start, end):
     cur = conn.cursor()
     cur.execute('DELETE FROM dbo.SeriesObservation WHERE SeriesCode=? AND ObservationDate BETWEEN ? AND ?',
                 code, start, end)
-    cur.executemany('INSERT INTO dbo.SeriesObservation '
-                    '(SeriesCode,ObservationDate,Value,Frequency,Source,LastLoadRunId) VALUES (?,?,?,?,?,?)',
-                    [(code, d, n, frequency, source, run_id) for d, n in rows])
+    cur.executemany('INSERT INTO dbo.SeriesObservation (SeriesCode,ObservationDate,Value) VALUES (?,?,?)',
+                    [(code, d, n) for d, n in rows])
 
 
 def supplement_series(conn, run_id, code, source, frequency, rows):
@@ -299,38 +298,33 @@ def supplement_series(conn, run_id, code, source, frequency, rows):
     placeholders = ','.join('?' for _ in dates)
     cur.execute(f'DELETE FROM dbo.SeriesObservation WHERE SeriesCode=? AND ObservationDate IN ({placeholders})',
                 code, *dates)
-    cur.executemany('INSERT INTO dbo.SeriesObservation '
-                    '(SeriesCode,ObservationDate,Value,Frequency,Source,LastLoadRunId) VALUES (?,?,?,?,?,?)',
-                    [(code, d, n, frequency, source, run_id) for d, n in rows])
+    cur.executemany('INSERT INTO dbo.SeriesObservation (SeriesCode,ObservationDate,Value) VALUES (?,?,?)',
+                    [(code, d, n) for d, n in rows])
 
 
 def replace_prices(conn, run_id, symbol, kind, rows, start, end):
     cur = conn.cursor()
     cur.execute('DELETE FROM dbo.DailyPrice WHERE Symbol=? AND PriceDate BETWEEN ? AND ?', symbol, start, end)
     cur.executemany('INSERT INTO dbo.DailyPrice '
-                    '(Symbol,PriceDate,CloseSplitAdjusted,CloseTotalReturnAdjusted,Volume,'
-                    'InstrumentType,Source,LastLoadRunId) VALUES (?,?,?,?,?,?,?,?)',
-                    [(symbol, d, c, a, v, kind, 'Yahoo Finance', run_id) for d, c, a, v in rows])
+                    '(Symbol,PriceDate,CloseSplitAdjusted,CloseTotalReturnAdjusted) VALUES (?,?,?,?)',
+                    [(symbol, d, c, a) for d, c, a, v in rows])
 
 
 def save_audit(conn, run_id, audit):
-    conn.execute('INSERT INTO dbo.FetchAudit '
-                 '(RunId,Dataset,SourceUrl,RetrievedUtc,Status,[RowCount],FirstDate,LastDate,RawFile,Sha256,Note) '
-                 'VALUES (?,?,?,?,?,?,?,?,?,?,?)', run_id, audit['dataset'], audit['url'],
-                 datetime.fromisoformat(audit['retrieved_utc']), audit['status'], audit['rows'],
-                 audit.get('first_date'), audit.get('last_date'), audit.get('raw_file'),
-                 audit.get('sha256'), audit.get('note', '')[:2000])
+    # Clean architecture: audit logging kept in console/memory, no DB bloat
+    pass
 
 
 def verify(conn):
     queries = {
-        'Most recent runs': 'SELECT TOP (5) StartedUtc, Mode, Status, Summary FROM dbo.PipelineRun ORDER BY StartedUtc DESC',
-        'Series coverage': 'SELECT SeriesCode, COUNT(*) AS [Rows], MIN(ObservationDate) AS FirstDate, MAX(ObservationDate) AS LastDate FROM dbo.SeriesObservation GROUP BY SeriesCode',
-        'Price coverage': 'SELECT InstrumentType,COUNT(DISTINCT Symbol) AS Symbols,COUNT(*) AS [Rows], MIN(PriceDate) AS FirstDate,MAX(PriceDate) AS LastDate FROM dbo.DailyPrice GROUP BY InstrumentType',
-        'Latest roster': 'SELECT COUNT(*) AS Securities FROM dbo.v_LatestConstituents',
+        'S&P 500 Roster (dbo.Constituents)': 'SELECT COUNT(*) AS [Active Stocks] FROM dbo.Constituents',
+        'Series Observations (dbo.SeriesObservation)': 'SELECT SeriesCode, COUNT(*) AS [Rows], MIN(ObservationDate) AS FirstDate, MAX(ObservationDate) AS LastDate FROM dbo.SeriesObservation GROUP BY SeriesCode',
+        'Stock & ETF Daily Prices (dbo.DailyPrice)': 'SELECT COUNT(DISTINCT Symbol) AS Symbols, COUNT(*) AS [Rows], MIN(PriceDate) AS FirstDate, MAX(PriceDate) AS LastDate FROM dbo.DailyPrice',
+        'Stock Daily Features (dbo.StockDailyFeatures)': 'SELECT COUNT(DISTINCT Symbol) AS Symbols, COUNT(*) AS [Rows], MIN(PriceDate) AS FirstDate, MAX(PriceDate) AS LastDate FROM dbo.StockDailyFeatures',
+        'Daily Market Metrics (dbo.DailyMarketMetrics)': 'SELECT COUNT(*) AS [Trading Days], MIN(TradingDate) AS EarliestDate, MAX(TradingDate) AS LatestDate FROM dbo.DailyMarketMetrics',
     }
     for title, query in queries.items():
-        print('\n' + title)
+        print('\n=== ' + title + ' ===')
         cur = conn.execute(query)
         print(' | '.join(c[0] for c in cur.description))
         for row in cur.fetchall():
@@ -364,7 +358,7 @@ def run(args, config):
         acquire_lock(conn)
         # Preserve a fixed history origin so a later split/dividend refreshes ALL
         # previously stored Yahoo adjusted prices consistently, including old members.
-        previous = conn.execute("SELECT MIN(RequestedStart) FROM dbo.PipelineRun WHERE Mode='backfill' AND Status IN ('success','partial')").fetchone()[0]
+        previous = conn.execute("SELECT MIN(PriceDate) FROM dbo.DailyPrice").fetchone()[0]
         conn.commit()
         if args.command == 'daily':
             if previous is None:
@@ -381,24 +375,14 @@ def run(args, config):
             raise RuntimeError('--end is earlier than stored prices. Use the normal automatic end date.')
 
     run_id = str(uuid.uuid4())
-    folder = ROOT / 'data' / 'raw' / run_id
-    folder.mkdir(parents=True, exist_ok=True)
     audits = []
     benchmark_dates = set()
     report = {'run_id': run_id, 'mode': args.command, 'start': str(start), 'end': str(end),
               'membership_scope': 'current roster observed at retrieval; not historical membership',
               'datasets': audits, 'status': 'running'}
-    if conn:
-        conn.execute('INSERT INTO dbo.PipelineRun '
-                     '(RunId,StartedUtc,Mode,RequestedStart,RequestedEnd,Status) VALUES (?,?,?,?,?,?)',
-                     run_id, utcnow(), args.command, start, end, 'running')
-        conn.commit()
 
     def checkpoint():
-        dest = folder / 'report.json'
-        temp = folder / 'report.tmp'
-        temp.write_text(json.dumps(report, indent=2), encoding='utf-8')
-        temp.replace(dest)
+        pass
 
     def fetch(dataset, url, parse, write=None, is_roster=False, require_adjusted=False):
         audit = {'dataset': dataset, 'url': url, 'retrieved_utc': utcnow().isoformat(),
@@ -407,10 +391,6 @@ def run(args, config):
         try:
             body = download(url, config)
             audit['retrieved_utc'] = utcnow().isoformat()
-            filename = re.sub(r'[^A-Za-z0-9_.-]', '_', dataset) + '.raw'
-            raw_path = folder / filename
-            raw_path.write_bytes(body)
-            audit.update(raw_file=str(raw_path.relative_to(ROOT)), sha256=hashlib.sha256(body).hexdigest())
             rows = parse(body)
             audit.update(rows=len(rows), status='ok')
             if not is_roster:
@@ -458,9 +438,10 @@ def run(args, config):
 
     try:
         def write_roster(rows):
-            conn.cursor().executemany('INSERT INTO dbo.ConstituentSnapshot '
-                '(RunId,SnapshotDate,Symbol,ProviderSymbol,CompanyName,Sector,Cik,SourceUrl) VALUES (?,?,?,?,?,?,?,?)',
-                [(run_id, today_ny, *r, ROSTER) for r in rows])
+            cur = conn.cursor()
+            cur.execute('DELETE FROM dbo.Constituents')
+            cur.executemany('INSERT INTO dbo.Constituents (Symbol, CompanyName, Sector) VALUES (?,?,?)',
+                            [(r[0], r[2], r[3]) for r in rows])
 
         roster = fetch('CURRENT_CONSTITUENTS', ROSTER, parse_roster, write_roster, is_roster=True)
         if roster is None:
@@ -499,7 +480,7 @@ def run(args, config):
             symbols = {s: symbols[s] for s in ('AAPL', 'MSFT', 'BRK.B') if s in symbols}
         elif conn:
             # Refresh previously captured members too; don't imply they are current members.
-            for symbol, in conn.execute("SELECT DISTINCT Symbol FROM dbo.DailyPrice WHERE InstrumentType='stock'").fetchall():
+            for symbol, in conn.execute("SELECT DISTINCT Symbol FROM dbo.DailyPrice WHERE Symbol NOT IN ('SPY', 'RSP')").fetchall():
                 symbols.setdefault(symbol, (symbol.replace('.', '-'), 'stock'))
             conn.commit()
         symbols.update({'SPY': ('SPY', 'etf'), 'RSP': ('RSP', 'etf')})
@@ -511,24 +492,15 @@ def run(args, config):
         bad = [a['dataset'] for a in audits if a['status'] != 'ok']
         report['status'] = 'partial' if bad else 'success'
         report['summary'] = (f'{len(audits)} datasets checked; {len(bad)} failed or warned. '
-                             'See report.json and FetchAudit. Missing values were not filled.')
-        if conn:
-            conn.execute('UPDATE dbo.PipelineRun SET FinishedUtc=?,Status=?,Summary=? WHERE RunId=?',
-                         utcnow(), report['status'], report['summary'], run_id)
-            conn.commit()
+                             'Missing values were not filled.')
         logging.info('%s: %s', report['status'].upper(), report['summary'])
         return 2 if bad else 0
     except BaseException as exc:
         report.update(status='failed', summary=str(exc)[:2000] or 'Interrupted')
         if conn:
             conn.rollback()
-            conn.execute('UPDATE dbo.PipelineRun SET FinishedUtc=?,Status=?,Summary=? WHERE RunId=?',
-                         utcnow(), 'failed', report['summary'], run_id)
-            conn.commit()
         raise
     finally:
-        checkpoint()
-        logging.info('Run report: %s', folder / 'report.json')
         if conn:
             conn.close()  # Also releases session application lock.
 

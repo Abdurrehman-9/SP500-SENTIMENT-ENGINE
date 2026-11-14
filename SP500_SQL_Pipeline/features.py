@@ -268,11 +268,11 @@ def run_features_pipeline():
         roster_count = len(roster_symbols)
         log.info(f'Observed constituent roster contains {roster_count} securities.')
 
-        # Fetch all stock prices in one efficient query
+        # Fetch all stock prices in one efficient query (excluding benchmark ETFs SPY/RSP)
         cursor.execute("""
             SELECT Symbol, PriceDate, CAST(CloseSplitAdjusted as float)
             FROM dbo.DailyPrice
-            WHERE InstrumentType = 'stock' AND CloseSplitAdjusted IS NOT NULL
+            WHERE Symbol NOT IN ('SPY', 'RSP') AND CloseSplitAdjusted IS NOT NULL
             ORDER BY Symbol, PriceDate
         """)
         stock_price_rows = cursor.fetchall()
@@ -385,13 +385,10 @@ def run_features_pipeline():
 
             market_metrics_to_save.append((
                 d,
-                now_utc,
-                RULE_VERSION,
                 reg.get('close'),
                 reg.get('sma200'),
                 reg.get('sma200_20d_ago'),
                 reg.get('regime', 'Unavailable'),
-                reg.get('reason'),
                 above_count,
                 eligible_count,
                 roster_count,
@@ -399,37 +396,28 @@ def run_features_pipeline():
                 round(coverage_pct, 4) if coverage_pct is not None else None,
                 round(health_pct, 4) if health_pct is not None else None,
                 health_band,
-                breadth_reason,
-                c_proxy.get('spy_close'),
                 c_proxy.get('spy_30d_return'),
-                c_proxy.get('rsp_close'),
                 c_proxy.get('rsp_30d_return'),
                 c_proxy.get('leadership_gap'),
-                c_proxy.get('reason'),
                 vix_close,
                 d if vix_close is not None else None,
                 realized_vol,
                 curr_pe,
-                pe_obs_date,
                 hist_pe_mean,
-                pe_vs_mean_pct,
-                stress_reason,
-                quality_status,
-                quality_notes
+                pe_vs_mean_pct
             ))
 
         cursor.execute("DELETE FROM dbo.DailyMarketMetrics")
         insert_metric_sql = """
             INSERT INTO dbo.DailyMarketMetrics (
-                TradingDate, CalculatedUtc, RuleVersion,
-                IndexClose, IndexSMA200, IndexSMA200_20d_ago, Regime, RegimeReason,
+                TradingDate,
+                IndexClose, IndexSMA200, IndexSMA200_20d_ago, Regime,
                 BreadthAboveCount, BreadthEligibleCount, BreadthRosterCount, BreadthExcludedCount,
-                BreadthCoveragePct, BreadthHealthPct, HealthBand, BreadthReason,
-                SPY_Close, SPY_30d_Return, RSP_Close, RSP_30d_Return, LeadershipGap_PctPoints, ConcentrationProxyReason,
+                BreadthCoveragePct, BreadthHealthPct, HealthBand,
+                SPY_30d_Return, RSP_30d_Return, LeadershipGap_PctPoints,
                 VIX_Close, VIX_Date, RealizedVol_20d_Annualized,
-                Current_PE, Current_PE_Date, Historical_PE_60m_Mean, PE_vs_Historical_Mean_Pct, StressReason,
-                QualityStatus, QualityNotes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                Current_PE, Historical_PE_60m_Mean, PE_vs_Historical_Mean_Pct
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         cursor.executemany(insert_metric_sql, market_metrics_to_save)
         conn.commit()

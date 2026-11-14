@@ -1,43 +1,58 @@
-USE SP500_Engine;
+/* 02_verify_load.sql
+   Target database: LoanBook01.
+   Inspects the clean relational tables across the entire S&P 500 Sentiment Engine.
+*/
+USE LoanBook01;
 GO
-/* 1. Latest run: success = downloads/load checks passed, not an investment endorsement. */
-SELECT TOP (10) * FROM dbo.PipelineRun ORDER BY StartedUtc DESC;
 
-/* 2. Failures and warnings on the latest run: an empty result is desirable. */
-DECLARE @RunId uniqueidentifier =
-    (SELECT TOP (1) RunId FROM dbo.PipelineRun ORDER BY StartedUtc DESC, RunId DESC);
-SELECT Dataset, Status, [RowCount], FirstDate, LastDate, Note
-FROM dbo.FetchAudit WHERE RunId = @RunId AND Status <> 'ok'
-ORDER BY Dataset;
+PRINT '==================================================';
+PRINT '  S&P 500 SENTIMENT ENGINE: DATA INTEGRITY AUDIT  ';
+PRINT '==================================================';
 
-/* 3. Historical coverage. P/E deliberately has fewer rows because it is monthly. */
-SELECT SeriesCode, Frequency, COUNT(*) AS [Rows],
-       MIN(ObservationDate) AS FirstDate, MAX(ObservationDate) AS LastDate
-FROM dbo.SeriesObservation GROUP BY SeriesCode, Frequency;
-SELECT InstrumentType, COUNT(DISTINCT Symbol) AS Symbols, COUNT(*) AS [Rows],
-       MIN(PriceDate) AS FirstDate, MAX(PriceDate) AS LastDate
-FROM dbo.DailyPrice GROUP BY InstrumentType;
+-- 1. S&P 500 Roster
+PRINT CHAR(10) + '1. ACTIVE S&P 500 CONSTITUENTS (dbo.Constituents)';
+SELECT COUNT(*) AS [Total Constituents], COUNT(DISTINCT Sector) AS [GICS Sectors]
+FROM dbo.Constituents;
 
-/* 4. Current membership and price coverage at the latest available FRED index date.
-   Multiple share classes mean there can be more than 500 securities.
-   Rows before this snapshot date are price history, not historical membership. */
-DECLARE @AsOf date = (SELECT MAX(ObservationDate) FROM dbo.SeriesObservation WHERE SeriesCode='SP500');
-SELECT @AsOf AS BenchmarkDate;
-SELECT c.Symbol,c.CompanyName,c.SnapshotDate,
-       COUNT(p.PriceDate) AS AvailablePricesThroughBenchmark,
-       MAX(p.PriceDate) AS LastPriceThroughBenchmark,
-       CASE WHEN COUNT(p.PriceDate)>=200 AND MAX(p.PriceDate)=@AsOf
-            THEN 'Enough rows; check gaps before SMA200' ELSE 'Insufficient or stale' END AS Coverage
-FROM dbo.v_LatestConstituents c
-LEFT JOIN dbo.DailyPrice p ON p.Symbol=c.Symbol AND p.PriceDate<=@AsOf
-GROUP BY c.Symbol,c.CompanyName,c.SnapshotDate
-ORDER BY AvailablePricesThroughBenchmark, c.Symbol;
+SELECT TOP (5) Symbol, CompanyName, Sector 
+FROM dbo.Constituents 
+ORDER BY Symbol;
 
-/* 5. Raw numbers to inspect manually. SPY and RSP must both use adjusted close
-   for their eventual return comparison; do not mix SPY total return with FRED price return. */
-SELECT TOP (6) * FROM dbo.SeriesObservation WHERE SeriesCode='SP500' ORDER BY ObservationDate DESC;
-SELECT TOP (6) * FROM dbo.SeriesObservation WHERE SeriesCode='VIX' ORDER BY ObservationDate DESC;
-SELECT TOP (6) * FROM dbo.SeriesObservation WHERE SeriesCode='PE_MONTHLY' ORDER BY ObservationDate DESC;
-SELECT TOP (10) * FROM dbo.DailyPrice WHERE Symbol IN ('SPY','RSP') ORDER BY PriceDate DESC, Symbol;
+-- 2. Macro Benchmark Time-Series
+PRINT CHAR(10) + '2. BENCHMARK TIME-SERIES (dbo.SeriesObservation)';
+SELECT SeriesCode, COUNT(*) AS [Observations],
+       MIN(ObservationDate) AS FirstObservation,
+       MAX(ObservationDate) AS LatestObservation
+FROM dbo.SeriesObservation 
+GROUP BY SeriesCode;
 
-/* Primary keys prevent duplicate symbol/date or series/date records on repeated loads. */
+-- 3. Stock and ETF Daily Prices
+PRINT CHAR(10) + '3. DAILY PRICE HISTORY (dbo.DailyPrice)';
+SELECT COUNT(DISTINCT Symbol) AS [Distinct Symbols],
+       COUNT(*) AS [Total Price Rows],
+       MIN(PriceDate) AS EarliestPriceDate,
+       MAX(PriceDate) AS LatestPriceDate
+FROM dbo.DailyPrice;
+
+-- 4. Derived Features & Indicators
+PRINT CHAR(10) + '4. DERIVED STOCK FEATURES (dbo.StockDailyFeatures)';
+SELECT COUNT(DISTINCT Symbol) AS [Stocks Processed],
+       COUNT(*) AS [Feature Rows],
+       SUM(CAST(AboveSMA200 AS int)) AS [Stocks Above SMA200 (All-Time Sessions)]
+FROM dbo.StockDailyFeatures;
+
+-- 5. Daily Market Metrics (Primary KPIs)
+PRINT CHAR(10) + '5. PRIMARY MARKET SURVEILLANCE METRICS (dbo.DailyMarketMetrics)';
+SELECT COUNT(*) AS [Surveillance Trading Days],
+       MIN(TradingDate) AS EarliestDate,
+       MAX(TradingDate) AS LatestDate
+FROM dbo.DailyMarketMetrics;
+
+SELECT TOP (5) 
+    TradingDate, IndexClose, Regime, 
+    BreadthHealthPct, HealthBand, 
+    LeadershipGap_PctPoints, 
+    VIX_Close, Current_PE, PE_vs_Historical_Mean_Pct
+FROM dbo.DailyMarketMetrics
+ORDER BY TradingDate DESC;
+GO

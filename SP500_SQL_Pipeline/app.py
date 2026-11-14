@@ -491,14 +491,13 @@ def load_market_metrics():
     conn = get_db_connection()
     query = """
         SELECT 
-            TradingDate, CalculatedUtc, RuleVersion,
-            IndexClose, IndexSMA200, IndexSMA200_20d_ago, Regime, RegimeReason,
+            TradingDate,
+            IndexClose, IndexSMA200, IndexSMA200_20d_ago, Regime,
             BreadthAboveCount, BreadthEligibleCount, BreadthRosterCount, BreadthExcludedCount,
-            BreadthCoveragePct, BreadthHealthPct, HealthBand, BreadthReason,
-            SPY_Close, SPY_30d_Return, RSP_Close, RSP_30d_Return, LeadershipGap_PctPoints, ConcentrationProxyReason,
+            BreadthCoveragePct, BreadthHealthPct, HealthBand,
+            SPY_30d_Return, RSP_30d_Return, LeadershipGap_PctPoints,
             VIX_Close, VIX_Date, RealizedVol_20d_Annualized,
-            Current_PE, Current_PE_Date, Historical_PE_60m_Mean, PE_vs_Historical_Mean_Pct, StressReason,
-            QualityStatus, QualityNotes
+            Current_PE, Historical_PE_60m_Mean, PE_vs_Historical_Mean_Pct
         FROM dbo.DailyMarketMetrics
         ORDER BY TradingDate ASC
     """
@@ -1368,7 +1367,7 @@ with t_method:
             <strong>Raw Storage</strong> ──────&gt; Timestamped raw payload captures &amp; run audit reports<br>
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼ (Transactional SQL Server backfill)<br>
-            <strong>SQL Server</strong> ───────&gt; SeriesObservation, DailyPrice, ConstituentSnapshot, FetchAudit<br>
+            <strong>SQL Server</strong> ───────&gt; Constituents, SeriesObservation, DailyPrice<br>
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br>
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼ (Feature Engineering)<br>
             <strong>Derived SQL</strong> ──────&gt; DailyMarketMetrics &amp; StockDailyFeatures<br>
