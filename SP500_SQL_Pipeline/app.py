@@ -58,30 +58,15 @@ st.markdown("""
         padding-right: 2.5rem !important;
     }
 
-    /* 1. Executive Hero Block */
+    /* 1. Executive Hero Section (Clean Page Header) */
     .hero-container {
-        background: #001524;
-        color: #FFFFFF;
-        border-radius: 24px;
-        padding: 34px 44px;
-        margin-bottom: 24px;
-        box-shadow: 12px 12px 28px rgba(0, 21, 36, 0.22), -6px -6px 20px rgba(255, 255, 255, 0.7);
-        position: relative;
-        overflow: hidden;
-    }
-
-    .hero-container::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 8px;
-        height: 100%;
-        background: #15616D;
+        background: transparent;
+        padding: 4px 0 16px 0;
+        margin-bottom: 12px;
     }
 
     .hero-meta {
-        font-size: 0.80rem;
+        font-size: 0.82rem;
         font-weight: 700;
         letter-spacing: 0.08em;
         color: #15616D;
@@ -93,15 +78,15 @@ st.markdown("""
         font-size: 2.6rem;
         font-weight: 800;
         letter-spacing: -0.03em;
-        line-height: 1.1;
-        color: #FFFFFF;
+        line-height: 1.15;
+        color: #001524;
         margin: 0;
     }
 
     .hero-subtitle {
         font-size: 0.98rem;
         font-weight: 400;
-        color: #CBD5E1;
+        color: #475569;
         margin-top: 8px;
         letter-spacing: -0.01em;
         line-height: 1.5;
@@ -922,7 +907,7 @@ with col_h_left:
     st.markdown("""
     <div class="hero-container">
         <div class="hero-meta">S&P 500 Market Intelligence</div>
-        <h1 class="hero-title">Market Surveillance Dashboard</h1>
+        <h1 class="hero-title">Market Surveillance Engine</h1>
         <div class="hero-subtitle">Executive oversight across market regime, constituent breadth, cap-weight concentration, and valuation risk at US market close.</div>
     </div>
     """, unsafe_allow_html=True)
