@@ -93,22 +93,21 @@ st.markdown("""
     }
 
     /* 2. Alternating Cards (#001524 & #15616D) */
-    .card-dark {
-        background: #001524 !important;
-        color: #FFFFFF !important;
+    .card-dark, .card-teal {
         border-radius: 22px;
-        box-shadow: 8px 8px 18px rgba(0, 21, 36, 0.28), -6px -6px 14px rgba(255, 255, 255, 0.85);
-        padding: 22px 24px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
         transition: all 0.2s ease-in-out;
-        height: 205px !important;
-        min-height: 205px !important;
-        max-height: 205px !important;
         box-sizing: border-box !important;
-        margin-top: 32px !important;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
+    }
+
+    .card-dark {
+        background: #001524 !important;
+        color: #FFFFFF !important;
+        box-shadow: 8px 8px 18px rgba(0, 21, 36, 0.28), -6px -6px 14px rgba(255, 255, 255, 0.85);
+        padding: 22px 24px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
     .card-dark:hover {
@@ -143,19 +142,9 @@ st.markdown("""
     .card-teal {
         background: #15616D !important;
         color: #FFFFFF !important;
-        border-radius: 22px;
         box-shadow: 8px 8px 18px rgba(21, 97, 109, 0.30), -6px -6px 14px rgba(255, 255, 255, 0.85);
         padding: 22px 24px;
         border: 1px solid rgba(255, 255, 255, 0.15);
-        transition: all 0.2s ease-in-out;
-        height: 205px !important;
-        min-height: 205px !important;
-        max-height: 205px !important;
-        box-sizing: border-box !important;
-        margin-top: 32px !important;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
     }
 
     .card-teal:hover {
@@ -187,6 +176,34 @@ st.markdown("""
         font-weight: 500;
         margin-top: 10px;
         line-height: 1.5;
+    }
+
+    /* Top Section KPI Cards: Equal Outer Dimensions & Offset */
+    .kpi-card {
+        height: 205px !important;
+        min-height: 205px !important;
+        max-height: 205px !important;
+        margin-top: 32px !important;
+    }
+
+    /* In-Tab Detail Cards: Expand Vertically to Fully Cover All Content */
+    .tab-card {
+        height: 100% !important;
+        min-height: 520px !important;
+        max-height: none !important;
+        overflow: visible !important;
+        padding: 28px !important;
+    }
+
+    /* Enclose All Plotly Charts in a Neumorphic Rounded Frame Card */
+    div[data-testid="stPlotlyChart"] {
+        background: #F0F0F3 !important;
+        border-radius: 24px !important;
+        box-shadow: 10px 10px 22px #d1d1d4, -10px -10px 22px #ffffff !important;
+        padding: 20px 24px !important;
+        border: 1px solid rgba(255, 255, 255, 0.85) !important;
+        box-sizing: border-box !important;
+        margin-bottom: 24px !important;
     }
 
     /* Neumorphic Canvas Cards */
@@ -955,7 +972,7 @@ w_col1, w_col2, w_col3, w_col4, w_col5 = st.columns(5)
 # Card 1: Market Regime -> CARD DARK (#001524)
 with w_col1:
     st.markdown(f"""
-    <div class="card-dark">
+    <div class="card-dark kpi-card">
         <div>
             <div class="w-tag">Market Regime</div>
             <div class="w-val" style="margin-top: 4px;">
@@ -973,7 +990,7 @@ with w_col1:
 # Card 2: Market Participation -> CARD TEAL (#15616D)
 with w_col2:
     st.markdown(f"""
-    <div class="card-teal">
+    <div class="card-teal kpi-card">
         <div>
             <div class="w-tag">Market Participation</div>
             <div class="w-val">
@@ -990,7 +1007,7 @@ with w_col2:
 # Card 3: Leadership Gap -> CARD DARK (#001524)
 with w_col3:
     st.markdown(f"""
-    <div class="card-dark">
+    <div class="card-dark kpi-card">
         <div>
             <div class="w-tag">Leadership Gap</div>
             <div class="w-val" style="color: {conc_state['value_color']};">
@@ -1007,7 +1024,7 @@ with w_col3:
 # Card 4: Expected Volatility (VIX) -> CARD TEAL (#15616D)
 with w_col4:
     st.markdown(f"""
-    <div class="card-teal">
+    <div class="card-teal kpi-card">
         <div>
             <div class="w-tag">Expected Volatility (VIX)</div>
             <div class="w-val">
@@ -1024,7 +1041,7 @@ with w_col4:
 # Card 5: Valuation -> CARD DARK (#001524)
 with w_col5:
     st.markdown(f"""
-    <div class="card-dark">
+    <div class="card-dark kpi-card">
         <div>
             <div class="w-tag">Trailing Valuation</div>
             <div class="w-val" style="color:#FFFFFF;">
@@ -1079,7 +1096,7 @@ with t_regime:
 
     with r_left:
         st.markdown(f"""
-        <div class="card-dark" style="padding: 28px;">
+        <div class="card-dark tab-card">
             <div>
                 <div class="w-tag">Current Verdict</div>
                 <div style="margin-top: 8px; margin-bottom: 20px;">
@@ -1101,7 +1118,6 @@ with t_regime:
         """, unsafe_allow_html=True)
 
     with r_right:
-        st.markdown("<div class='neu-card'>", unsafe_allow_html=True)
         fig_regime = go.Figure()
         fig_regime.add_trace(go.Scatter(
             x=metrics_df['TradingDate'], y=metrics_df['IndexClose'],
@@ -1121,7 +1137,6 @@ with t_regime:
         )
         fig_regime.update_layout(get_chart_layout("S&P 500 Closing Level vs. 200-Day Moving Average"))
         st.plotly_chart(fig_regime, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
 # TAB 2: MARKET HEALTH & BREADTH
@@ -1136,7 +1151,7 @@ with t_health:
 
     with h_left:
         st.markdown(f"""
-        <div class="card-teal" style="padding: 28px;">
+        <div class="card-teal tab-card">
             <div>
                 <div class="w-tag">Breadth Status</div>
                 <div style="margin-top: 8px; margin-bottom: 20px;">
@@ -1159,7 +1174,6 @@ with t_health:
         """, unsafe_allow_html=True)
 
     with h_right:
-        st.markdown("<div class='neu-card'>", unsafe_allow_html=True)
         fig_breadth = go.Figure()
         fig_breadth.add_trace(go.Scatter(
             x=metrics_df['TradingDate'], y=metrics_df['BreadthHealthPct'],
@@ -1173,7 +1187,6 @@ with t_health:
         layout_b['yaxis']['range'] = [0, 100]
         fig_breadth.update_layout(layout_b)
         st.plotly_chart(fig_breadth, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
 # TAB 3: RETURN CONCENTRATION
@@ -1188,7 +1201,7 @@ with t_concentration:
 
     with c_left:
         st.markdown(f"""
-        <div class="card-dark" style="padding: 28px;">
+        <div class="card-dark tab-card">
             <div>
                 <div class="w-tag">30-Day Leadership Gap</div>
                 <div style="font-size: 2.2rem; font-weight: 800; color: {conc_state['value_color']}; margin-top: 6px; margin-bottom: 10px;">
@@ -1212,7 +1225,6 @@ with t_concentration:
         """, unsafe_allow_html=True)
 
     with c_right:
-        st.markdown("<div class='neu-card'>", unsafe_allow_html=True)
         fig_gap = go.Figure()
         fig_gap.add_trace(go.Bar(
             x=metrics_df['TradingDate'],
@@ -1226,7 +1238,6 @@ with t_concentration:
         layout_c['yaxis']['title'] = "Percentage Points (pp)"
         fig_gap.update_layout(layout_c)
         st.plotly_chart(fig_gap, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
 # TAB 4: MARKET STRESS & VALUATION
@@ -1241,7 +1252,7 @@ with t_stress:
 
     with s_left:
         st.markdown(f"""
-        <div class="card-teal" style="padding: 28px;">
+        <div class="card-teal tab-card">
             <div>
                 <div class="w-tag">Risk & Valuation Status</div>
                 <div style="margin-top: 8px; margin-bottom: 18px; display: flex; gap: 8px; flex-wrap: wrap;">
@@ -1266,7 +1277,6 @@ with t_stress:
         """, unsafe_allow_html=True)
 
     with s_right:
-        st.markdown("<div class='neu-card'>", unsafe_allow_html=True)
         fig_vol = go.Figure()
         fig_vol.add_trace(go.Scatter(
             x=metrics_df['TradingDate'], y=metrics_df['VIX_Close'],
@@ -1283,7 +1293,6 @@ with t_stress:
         fig_vol.add_vline(x=pd.to_datetime(selected_date), line_width=1.5, line_dash="dot", line_color="#001524")
         fig_vol.update_layout(get_chart_layout("Expected Volatility (VIX) vs. Observed 20-Day Realized Volatility"))
         st.plotly_chart(fig_vol, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
 # TAB 5: DATA EXPLORER (Completely Unaltered per User Request)
