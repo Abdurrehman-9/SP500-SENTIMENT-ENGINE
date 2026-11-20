@@ -1,6 +1,7 @@
 .venv/
 __pycache__/
-data/
+data/*
+!data/sp500_snapshot.db
 logs/
 config.local.json
 *.bak

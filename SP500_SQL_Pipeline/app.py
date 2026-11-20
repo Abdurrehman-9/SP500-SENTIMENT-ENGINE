@@ -15,7 +15,11 @@ from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
-import pyodbc
+try:
+    import pyodbc
+except ImportError:
+    pyodbc = None
+import sqlite3
 import streamlit as st
 
 ROOT = Path(__file__).resolve().parent
@@ -488,13 +492,36 @@ st.markdown("""
 # --- Database Connector ---
 @st.cache_resource
 def get_db_connection():
-    with open(ROOT / 'config.json', 'r', encoding='utf-8') as f:
-        config = json.load(f)
-    driver = config['odbc_driver']
-    cs = (f'DRIVER={{{driver}}};SERVER={{{config["sql_server"]}}};'
-          f'DATABASE={{{config["sql_database"]}}};Trusted_Connection=yes;Encrypt=yes;'
-          f'TrustServerCertificate={"yes" if config["trust_server_certificate"] else "no"};')
-    return pyodbc.connect(cs, timeout=15)
+    # 1. Try local SQL Server (ODBC) if pyodbc is available and config exists
+    if pyodbc is not None:
+        try:
+            config_path = ROOT / 'config.json'
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                driver = config.get('odbc_driver', 'ODBC Driver 17 for SQL Server')
+                cs = (f'DRIVER={{{driver}}};SERVER={{{config["sql_server"]}}};'
+                      f'DATABASE={{{config["sql_database"]}}};Trusted_Connection=yes;Encrypt=yes;'
+                      f'TrustServerCertificate={"yes" if config.get("trust_server_certificate", True) else "no"};')
+                return pyodbc.connect(cs, timeout=3)
+        except Exception:
+            pass  # Fall through to SQLite snapshot fallback
+
+    # 2. Seamless Fallback: Embedded SQLite Snapshot (Streamlit Cloud or offline)
+    possible_paths = [
+        ROOT / 'data' / 'sp500_snapshot.db',
+        ROOT / 'sp500_snapshot.db',
+        Path('data') / 'sp500_snapshot.db',
+        Path('SP500_SQL_Pipeline') / 'data' / 'sp500_snapshot.db',
+    ]
+    for p in possible_paths:
+        if p.exists():
+            return sqlite3.connect(str(p), check_same_thread=False)
+
+    raise RuntimeError(
+        "Database connection failed: Local SQL Server is unreachable and the SQLite snapshot "
+        "sp500_snapshot.db was not found. Please ensure data/sp500_snapshot.db is present."
+    )
 
 
 def load_market_metrics():
@@ -508,7 +535,7 @@ def load_market_metrics():
             SPY_30d_Return, RSP_30d_Return, LeadershipGap_PctPoints,
             VIX_Close, VIX_Date, RealizedVol_20d_Annualized,
             Current_PE, Historical_PE_60m_Mean, PE_vs_Historical_Mean_Pct
-        FROM dbo.DailyMarketMetrics
+        FROM DailyMarketMetrics
         ORDER BY TradingDate ASC
     """
     df = pd.read_sql(query, conn)
@@ -522,8 +549,8 @@ def load_stock_features(target_date):
         SELECT 
             f.Symbol, c.CompanyName, c.Sector,
             f.CloseSplitAdjusted, f.SMA200, f.AboveSMA200, f.IsEligibleBreadth
-        FROM dbo.StockDailyFeatures f
-        LEFT JOIN dbo.v_LatestConstituents c ON f.Symbol = c.Symbol
+        FROM StockDailyFeatures f
+        LEFT JOIN v_LatestConstituents c ON f.Symbol = c.Symbol
         WHERE f.PriceDate = ?
         ORDER BY f.Symbol ASC
     """
