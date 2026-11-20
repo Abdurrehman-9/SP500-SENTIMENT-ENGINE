@@ -101,7 +101,11 @@ st.markdown("""
         padding: 22px 24px;
         border: 1px solid rgba(255, 255, 255, 0.08);
         transition: all 0.2s ease-in-out;
-        height: 100%;
+        height: 205px !important;
+        min-height: 205px !important;
+        max-height: 205px !important;
+        box-sizing: border-box !important;
+        margin-top: 32px !important;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
@@ -144,7 +148,11 @@ st.markdown("""
         padding: 22px 24px;
         border: 1px solid rgba(255, 255, 255, 0.15);
         transition: all 0.2s ease-in-out;
-        height: 100%;
+        height: 205px !important;
+        min-height: 205px !important;
+        max-height: 205px !important;
+        box-sizing: border-box !important;
+        margin-top: 32px !important;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
